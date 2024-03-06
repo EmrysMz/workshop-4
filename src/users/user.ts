@@ -104,6 +104,8 @@ export async function user(userId: number) {
     circuit.reverse();
     getLastCircuit = circuit;
     lastSentMessage = message;
+
+    //a
     
     await fetch(`http://localhost:${BASE_ONION_ROUTER_PORT + circuit[0].nodeId}/message`, {method: "POST", headers: {"Content-Type": "application/json",},body: JSON.stringify({ message: finalMessage })});
 
