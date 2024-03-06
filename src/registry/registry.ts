@@ -2,7 +2,7 @@ import bodyParser from "body-parser";
 import express, { Request, Response } from "express";
 import { REGISTRY_PORT } from "../config";
 
-export type Node = { nodeId: number; pubKey: string };
+export type Node = { nodeId: number; pubKey: string; privKey?:string };
 
 const nodes: Node[] = [];
 
@@ -29,6 +29,7 @@ export async function launchRegistry() {
     if (nodes.some((node) => node.nodeId === body.nodeId)) {
       res.status(400).json({ error: "Node already registered" });
     } else {
+      
       nodes.push(body);
       res.status(201).json({ result: "Node registered" });
     }
@@ -36,7 +37,18 @@ export async function launchRegistry() {
 
   registry.get("/getNodeRegistry", (req, res) => {
     const response: GetNodeRegistryBody = { nodes };
+   
     res.json(response);
+  });
+
+  registry.get("/getPrivateKey/:nodeId", (req, res) => {
+    const nodeId = Number(req.params.nodeId);
+    const node = nodes.find((n) => n.nodeId === nodeId);
+    if (node && node.privKey) {
+      res.json({ result: node.privKey });
+    } else {
+      res.status(404).json({ error: "Private key not found for the requested node" });
+    }
   });
 
   const server = registry.listen(REGISTRY_PORT, () => {

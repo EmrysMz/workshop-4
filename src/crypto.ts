@@ -83,8 +83,8 @@ export async function rsaEncrypt(b64Data: string, strPublicKey: string): Promise
 export async function rsaDecrypt(data: string, privateKey: webcrypto.CryptoKey): Promise<string> {
   const encryptedData = base64ToArrayBuffer(data);
   const decrypted = await webcrypto.subtle.decrypt({ name: 'RSA-OAEP' }, privateKey, encryptedData);
-  const decoder = new TextDecoder();
-  return arrayBufferToBase64(new Uint8Array(decrypted));
+
+  return arrayBufferToBase64(decrypted);
 }
 
 // Creates a random symmetric key for AES-CBC encryption
