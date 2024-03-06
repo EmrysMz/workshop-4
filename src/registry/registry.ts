@@ -4,7 +4,6 @@ import { REGISTRY_PORT } from "../config";
 
 export type Node = { nodeId: number; pubKey: string; privKey?:string };
 
-const nodes: Node[] = [];
 
 export type RegisterNodeBody = {
   nodeId: number;
@@ -19,6 +18,8 @@ export async function launchRegistry() {
   const registry = express();
   registry.use(express.json());
   registry.use(bodyParser.json());
+
+  let nodes: Node[] = [];
 
   registry.get("/status", (req, res) => {
     res.send("live");

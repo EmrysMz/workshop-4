@@ -6,13 +6,15 @@ import { generateRsaKeyPair, exportPrvKey,exportPubKey,rsaDecrypt,rsaEncrypt,cre
 
 
 export async function simpleOnionRouter(nodeId: number) {
-  let lastReceivedEncryptedMessage: string | null = null;
-  let lastReceivedDecryptedMessage: string | null = null;
-  let lastMessageDestination: number | null = null;
+  
 
   const onionRouter = express();
   onionRouter.use(express.json());
   onionRouter.use(bodyParser.json());
+
+  let lastReceivedEncryptedMessage: string | null = null;
+  let lastReceivedDecryptedMessage: string | null = null;
+  let lastMessageDestination: number | null = null;
 
   
 
@@ -24,7 +26,7 @@ export async function simpleOnionRouter(nodeId: number) {
 
 
 
-  const body = { nodeId, pubKey : pubKeyExport, privKey : privateKeyExport};
+  const body = { nodeId, pubKey : pubKeyExport};
 
   const registryResponse = await fetch(`http://localhost:${REGISTRY_PORT}/registerNode`, {
     method: "POST",
@@ -54,55 +56,33 @@ export async function simpleOnionRouter(nodeId: number) {
     res.json({ result: lastMessageDestination });
   });
 
-  onionRouter.get("/getPrivateKey", async (req, res) => {
-    try {
-      const privateKeyResponse = await fetch(`http://localhost:${REGISTRY_PORT}/getPrivateKey/${nodeId}`);
-  
-      if (privateKeyResponse.ok) {
-        const privateKeyData = await privateKeyResponse.json() as { result: string };
-        const privateKey = privateKeyData.result;
-        res.json({ result: privateKey });
-      } else {
-        throw new Error(`Failed to fetch private key. Status: ${privateKeyResponse.status}`);
-      }
-    } catch (error) {
-      console.error(error);
-      res.status(500).json({ error: "Internal server error" });
-    }
+  onionRouter.get("/getPrivateKey", (req, res) => {
+    res.json({ result: privateKeyExport});
   });
 
 
   onionRouter.post("/message", async (req, res) => {
 
     const {message} = req.body;
-
-    const privateKeyResponse = await fetch(`http://localhost:${REGISTRY_PORT}/getPrivateKey/${nodeId}`);
-    const privateKeyData = await privateKeyResponse.json() as { result: string };
-    const privateKey = privateKeyData.result;
-
-    
     
 
-    const decryptedKey = await rsaDecrypt(message.slice(0,344), await importPrvKey(privateKey));
-
-    
+  
+    const decryptedKey = await rsaDecrypt(message.slice(0,344), privateKey);
 
     const decryptedMessage = await symDecrypt(decryptedKey,message.slice(344));
-
-    //const nextDestination = Number(decryptedMessage.slice(0,10));
-    const nextDestination = parseInt(decryptedMessage.slice(0,10),10);
+    const nextDest = Number(decryptedMessage.slice(0,10));
 
     const remainingMessage = decryptedMessage.slice(10);
 
     lastReceivedEncryptedMessage = message;
     lastReceivedDecryptedMessage = remainingMessage;
-    lastMessageDestination = nextDestination;
+    lastMessageDestination = nextDest;
 
    
 
-    await fetch(`http://localhost:${nextDestination}/message`, {method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ message: remainingMessage })});
+    await fetch(`http://localhost:${nextDest}/message`, {method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ message: remainingMessage })});
 
-    res.status(200).json({ result: "success" });
+    res.status(200).json({ result: "message sent to next destination" });
 
 
 

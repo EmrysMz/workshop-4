@@ -36,15 +36,23 @@ function getRandomCircuit(nodes: Node[], circuitLength: number): Node[] {
 }
 
 export async function user(userId: number) {
-  let lastReceivedMessage: string | null = null;
-  let lastSentMessage: string | null = null;
+  
 
   const _user = express();
   _user.use(express.json());
   _user.use(bodyParser.json());
 
+  let lastReceivedMessage: string | null = null;
+  let lastSentMessage: string | null = null;
+  let getLastCircuit: Node[] = [];
+
   _user.get("/status", (req, res) => {
     res.send("live");
+  });
+
+  _user.get("/getLastCircuit", (req, res) => {
+   
+    res.status(200).json({ result: getLastCircuit.map((node) => node.nodeId) });
   });
 
   _user.get("/getLastReceivedMessage", (req, res) => {
@@ -62,49 +70,45 @@ export async function user(userId: number) {
   });
 
   _user.post("/sendMessage", async (req, res) => {
-    const body = req.body as SendMessageBody;
-    const { message, destinationUserId } = body;
-
+   
+    const { message, destinationUserId } = req.body;
     const registryResponse = await fetch("http://localhost:" + REGISTRY_PORT + "/getNodeRegistry");
     const {nodes} = await registryResponse.json() as {nodes : Node[]};
 
-    const circuit = getRandomCircuit(nodes, 3);
-
+    let circuit = getRandomCircuit(nodes, 3);
     let destination = `${BASE_USER_PORT + destinationUserId}`.padStart(10, "0");
+    let finalMessage = message;
 
-    let messageToUser = message
 
-    for (let i = circuit.length - 1; i >= 0; i--) {
+    for (let i = 0; i < circuit.length; i++) {
+      const node = circuit[i];
+    
+      const symmetricKey = await createRandomSymmetricKey();
+      const symmetricKey64 = await exportSymKey(symmetricKey);
 
-      const symmectricKey = await createRandomSymmetricKey();
-      const symmectricKeyExported = await exportSymKey(symmectricKey);
-
-      const encryptedMessage = await symEncrypt(symmectricKey,`${destination}${messageToUser}`);
-      destination = `${BASE_ONION_ROUTER_PORT + circuit[i].nodeId}`.padStart(10, "0");
-
-      const encryptedSymmectricKey = await rsaEncrypt(symmectricKeyExported,circuit[i].pubKey);
-      messageToUser = `${encryptedSymmectricKey}${encryptedMessage}`;
-
+      const encryptedMessage = await symEncrypt(symmetricKey, `${destination}${finalMessage}`);
+    
+      destination = `${BASE_ONION_ROUTER_PORT + node.nodeId}`.padStart(10, '0');
+    
+      const encryptedSymKey = await rsaEncrypt(symmetricKey64, node.pubKey);
+    
+      finalMessage = encryptedSymKey + encryptedMessage;
+    
+    
+      console.log(`Node at index ${i}:`, node.nodeId, "Destination:", destination);
     }
 
-    
+    //throw new Error("Circuit1 : " + circuit[0] + "Circuit2 : " + circuit[1] + "Circuit3 : " + circuit[2]);
 
-    lastSentMessage = messageToUser;
+  
     circuit.reverse();
-
-    await fetch(`http://localhost:${BASE_ONION_ROUTER_PORT + circuit[0].nodeId}/message`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ message: messageToUser })});
-
-    res.status(200).json({ result: "success" });
-
-
+    getLastCircuit = circuit;
+    lastSentMessage = message;
     
+    await fetch(`http://localhost:${BASE_ONION_ROUTER_PORT + circuit[0].nodeId}/message`, {method: "POST", headers: {"Content-Type": "application/json",},body: JSON.stringify({ message: finalMessage })});
 
 
-
-
+    res.status(200).send("Message sent successfully");
   });
 
   
